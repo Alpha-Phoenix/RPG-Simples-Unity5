@@ -70,9 +70,12 @@ public class PlayerMovementBehaviour : MonoBehaviour {
 	}
 
 	void UpdatePlayerAnimationState () {
-		if (TryingToMove ())
-			state = Input.GetKey (KeyCode.LeftShift) ? PlayerState.RUNNING : PlayerState.WALKING;
-		else
+		if (TryingToMove ()) {
+			if (IsMoving ())
+				state = Input.GetKey (KeyCode.LeftShift) ? PlayerState.RUNNING : PlayerState.WALKING;
+			else
+				state = PlayerState.STOPPED;
+		} else 
 			state = PlayerState.STOPPED;
 		animator.SetInteger ("PlayerState", (int) state);
 		animator.SetInteger ("PlayerDirection", (int) direction);
