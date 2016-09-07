@@ -1,9 +1,14 @@
-﻿using UnityEngine;
+﻿#define __DEBUG__
+
+using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
 
+[ExecuteInEditMode]
 public class PlayerMovementBehaviour : MonoBehaviour {
 
+	#region TESTED
+	#region PROPERTIES
 	public enum PlayerDirection {
 		UP    = 1,
 		RIGHT = 2,
@@ -14,206 +19,167 @@ public class PlayerMovementBehaviour : MonoBehaviour {
 	public enum PlayerState {
 		STOPPED = 1,
 		WALKING = 2,
-		RUNNING = WALKING // Ainda sem animação de correr
+		RUNNING = 3
 	}
 
-	public KeyCode[] moveKeys = {
-		KeyCode.W, KeyCode.A, KeyCode.S, KeyCode.D
-	};
+	private PlayerDirection _direction = PlayerDirection.UP; // Direção para a qual o player iniciará virado
+	private PlayerState _state = PlayerState.STOPPED;		 // Estado atual (PARADO)
+	private Vector3 _destination;		  					 // Direção para a qual o player deve andar
+	private const float initialSpeed = 3;					 // Velocidade default da animação de andar/correr
+	private const float speedMultiplier = 1.5f;				 // Multiplicador quando estiver correndo
+	private const float speed = initialSpeed;        	     // Velocidade de animação
+	private const float _tileSize = 1;            			 // Largura e altura de um tile em Unity units
+	private const float _delayTime = 0.15f;			  		 // O player só se movimenta para uma determinada direção se o keyRecord dessa
+									  						 // direção for igual ao delayTime
+	private bool _moving = false;                            // Flag de movimentação usado e modificado em Move()
+	private bool _running = false;							 // Flag de movimentação acelerada
+	private Animator animator;		  						 // Controlador de animações
+	private Rect mapLimits;									 // Coordenada das bordas do mapa
 
-	public PlayerDirection direction; // Direção para a qual o player está olhando
-	public PlayerState state;		  // Estado atual
-	public Vector3 destiny;			  // Direção para a qual o player deve andar
-	public float velocity = 3.0f;     // Velocidade de animação
-	public float tileSize;            // Largura e altura de um tile em Unity units
-	public float delayTime;			  // O player só se movimenta para uma determinada direção se o keyRecord dessa
-									  // direção for igual ao delayTime
-	public Animator animator;		  // Controlador de animações
+	#endregion
 
-	public Dictionary<KeyCode, float> keyRecord; // Armazena tempo em que as teclas estão pressionadas
-
-	// Use this for initialization
 	void Start () {
-		destiny = transform.position;
-		tileSize = 1f;
-
-		// Inicia parado virado para cima
-		direction = PlayerDirection.UP;
-		state = PlayerState.STOPPED;
-
-		keyRecord = new Dictionary<KeyCode, float> ();
-		delayTime = 0.15f;
+		_destination = transform.position;
 		animator = GetComponent<Animator> ();
 
-		// Inicia as keyRecords com 0
-		foreach (var key in moveKeys)
-			keyRecord.Add (key, 0f);
+		// Necessário para encontrar as dimensões do mapa atual
+		// Deve haver um ÚNICO mapa no jogo e este DEVE conter a TAG Map
+		var mapSpriteRenderer = GameObject.FindGameObjectWithTag("Map").GetComponent<SpriteRenderer>() as SpriteRenderer;
+		_moving = false;
+
+		mapLimits.xMin = mapSpriteRenderer.bounds.min.x;
+		mapLimits.yMin = mapSpriteRenderer.bounds.min.y;
+		mapLimits.xMax = mapSpriteRenderer.bounds.max.x;
+		mapLimits.yMax = mapSpriteRenderer.bounds.max.y;
 	}
 
-	// Aumenta ou diminui uma keyRecord se a key estiver pressionada
-	void UpdateKeyRecords () {
-		foreach (var key in moveKeys) {
-			if (Input.GetKey (key))
-				keyRecord [key] += Time.deltaTime;
-			else {
-				// Esse if é um truque para que não seja preciso esperar o tempo inteiro
-				// para repetir um movimento anterior
-				if (!(IsMoving() && direction == KeyToDirection(key)))
-					keyRecord [key] -= 0.005f;
-			}
-
-			// Mantém a as keysRecords em um intervalo [0, delayTime]
-			if (keyRecord [key] < 0)
-				keyRecord [key] = 0;
-			else if (keyRecord [key] > delayTime)
-				keyRecord [key] = delayTime;
-		}
-	}
-	
 	// Update is called once per frame
 	void FixedUpdate () {
-		UpdateKeyRecords ();
-		GetUserInput ();
 		Move ();
 		UpdatePlayerAnimationState ();
 	}
 
-	void UpdatePlayerAnimationState () {
+	public Vector3 GetPosition() {
+		return transform.position;
+	}
+
+	public bool SetDestination (Vector3 newDestination, bool run) {
+		if (_moving)
+			return false;
+
+		if (!CanMoveTo (newDestination))
+			return false;
+
+		_destination = newDestination;
+		_moving = true;
+		_running = run;
+
+		return true;
+	}
+
+	public bool IsMoving() {
+		return _moving;
+	}
+
+	private void UpdatePlayerAnimationState () {
 		
-		if (IsMoving ())
-			state = Input.GetKey (KeyCode.LeftShift) ? PlayerState.RUNNING : PlayerState.WALKING;
-		else {
-			if (!TryingToMove())
-				state = PlayerState.STOPPED;
-		}
-		animator.SetInteger ("PlayerState", (int) state);
-		animator.SetInteger ("PlayerDirection", (int) direction);
+		if (!IsMoving ())
+			_state = PlayerState.STOPPED;
+		else
+			_state = _running ? PlayerState.RUNNING : PlayerState.WALKING;
+		
+		animator.SetInteger ("PlayerState", (int) _state);
+		animator.SetInteger ("PlayerDirection", (int) _direction);
 	}
 
-	PlayerDirection KeyToDirection(KeyCode key) {
-		if (key == KeyCode.W)
-			return PlayerDirection.UP;
-		if (key == KeyCode.A)
-			return PlayerDirection.LEFT;
-		if (key == KeyCode.S)
-			return PlayerDirection.DOWN;
-		if (key == KeyCode.D)
-			return PlayerDirection.RIGHT;
+	#endregion TESTED
 
-		Debug.LogError ("INVALID KEY");
-		return PlayerDirection.UP;
-	}
+	// Como SetDestination() sempre verifica a validade do destino, o método move mover sem fazer quaisquer alterações
+	private void Move() {
+		Vector3 toAdd = _destination - transform.position;
 
-	void GetUserInput() {
-		if (IsMoving ())
-			return;
+		Vector3 step = _running ?
+			toAdd.normalized * speed * speedMultiplier * Time.deltaTime :
+			toAdd.normalized * speed * Time.deltaTime;
 
-		foreach (var key in keyRecord) {
-			// Condição para que possa se mover sem que seja necessário esperar o keyRecord atingir o delayTime
-			if (key.Value == delayTime) {
-				switch (key.Key) {
-				case KeyCode.W:
-					if (direction == KeyToDirection(key.Key) && keyRecord[key.Key] == delayTime)
-						destiny.y += tileSize;
-					else
-						direction = KeyToDirection(key.Key);
-					break;
-				case KeyCode.A:
-					if (direction == KeyToDirection(key.Key) && keyRecord[key.Key] == delayTime)
-						destiny.x -= tileSize;
-					else
-						direction = KeyToDirection(key.Key);
-					break;
-				case KeyCode.S:
-					if (direction == KeyToDirection(key.Key) && keyRecord[key.Key] == delayTime)
-						destiny.y -= tileSize;
-					else
-						direction = KeyToDirection(key.Key);
-					break;
-				case KeyCode.D:
-					if (direction == KeyToDirection(key.Key) && keyRecord[key.Key] == delayTime)
-						destiny.x += tileSize;
-					else
-						direction = KeyToDirection(key.Key);
-					break;
-				}
-				return;
-			}
-		}
-
-		if (Input.GetKey(KeyCode.W)) {
-			if (direction == PlayerDirection.UP) {
-				if (keyRecord [KeyCode.W] == delayTime)
-					destiny.y += tileSize;
-			} else
-				direction = PlayerDirection.UP;
-		}
-
-		else if (Input.GetKey(KeyCode.A)) {
-			if (direction == PlayerDirection.LEFT) {
-				if (keyRecord [KeyCode.A] == delayTime)
-					destiny.x -= tileSize;
-			}
-			else
-				direction = PlayerDirection.LEFT;
-		}
-
-		else if (Input.GetKey(KeyCode.S)) {
-			if (direction == PlayerDirection.DOWN) {
-				if (keyRecord [KeyCode.S] == delayTime)
-					destiny.y -= tileSize;
-			}
-			else
-				direction = PlayerDirection.DOWN;
-		}
-
-		else if (Input.GetKey(KeyCode.D)) {
-			if (direction == PlayerDirection.RIGHT) {
-				if (keyRecord [KeyCode.D] == delayTime)
-					destiny.x += tileSize;
-			}
-			else
-				direction = PlayerDirection.RIGHT;
-		}
-	}
-
-	void Move() {
-		Vector3 toAdd = destiny - transform.position;
-		Vector3 step = toAdd.normalized * velocity * Time.deltaTime;
 		if (toAdd.magnitude <= step.magnitude) {
-			transform.position = destiny;
+			transform.position = _destination;
+			_moving = false;
 		}
 		else {
-			transform.position += step;
+			_moving = (transform.position += step) == _destination ? false : true;
 		}
 
-		if (step.x < 0 && Mathf.Abs(step.x) > Mathf.Abs(step.y)) direction = PlayerDirection.LEFT;
-		if (step.x > 0 && Mathf.Abs(step.x) > Mathf.Abs(step.y)) direction = PlayerDirection.RIGHT;
-		if (step.y < 0 && Mathf.Abs(step.x) <= Mathf.Abs(step.y)) direction = PlayerDirection.DOWN;
-		if (step.y > 0 && Mathf.Abs(step.x) <= Mathf.Abs(step.y)) direction = PlayerDirection.UP;
+		toAdd = toAdd.normalized;
+
+		if (toAdd == Vector3.left) _direction = PlayerDirection.LEFT;
+		else if (toAdd == Vector3.right) _direction = PlayerDirection.RIGHT;
+		else if (toAdd == Vector3.down) _direction = PlayerDirection.DOWN;
+		else _direction = PlayerDirection.UP;
 	}
 
-	bool IsMoving() {
-		return transform.position != destiny;
-	}
+	#region TESTED
+	// Verifica se pode mover para um POSIÇÃO no mapa, e não para um DIREÇÃO
+	bool CanMoveTo (Vector3 position) {
 
-	bool TryingToMove () {
-		foreach (var key in moveKeys)
-			if (Input.GetKey (key))
-				return true;
-		return false;
-	}
-
-
-	void OnTriggerEnter2D (Collider2D col) {
-
-		switch (direction) {
-		case PlayerDirection.UP:
-			transform.Translate (Vector3.down);
-			destiny = transform.position;
-			break;
+		// Verificando se a posição de destino já não é a posição atual;
+		if (_destination == transform.position) {
+#if __DEBUG__
+			Debug.LogWarning ("Trying to move for the current position!");
+#endif
+			return true;
+		}
+		
+		// Verificando se as coordenadas do vetor são inteiros
+		var sumF = position.x + position.y + position.z;
+		var sumI = (int)sumF;
+		if (sumI != sumF) {
+			// As coordenadas não são inteiras
+#if __DEBUG__
+			Debug.LogError ("Invalid destination \"" + position + "\". Only can move to integer positions");
+			UnityEditor.EditorApplication.isPlaying = false;
+#endif
+			return false;
 		}
 
-		Debug.Log ("TRIGGER");
+
+		// Verificando se a posição está fora do mapa
+		// Lembrando que o pivô do player está no canto inf esq
+		if (position.x < mapLimits.xMin ||
+			(position.x + _tileSize) > mapLimits.xMax ||
+			position.y < mapLimits.yMin ||
+			(position.y - _tileSize) > mapLimits.yMax) {
+#if __DEBUG__
+			Debug.LogError ("The direction " + position + " move away of the map");
+			UnityEditor.EditorApplication.isPlaying = false;
+#endif
+			return false;
+		}
+
+
+		// Verificando se o destino está na mesma linha ou na mesma coluna que a posição atual
+		var diff = (position - transform.position).normalized;
+
+		if (diff == Vector3.up) {
+		} else if (diff == Vector3.down) {
+		} else if (diff == Vector3.left) {
+		} else if (diff == Vector3.right) {
+		} else {
+#if __DEBUG__
+			Debug.LogError ("Invalid destination \"" + position + "\". Can only move horizontally or vertically");
+			Debug.LogError ("Current position \"" + transform.position + "\".");
+			UnityEditor.EditorApplication.isPlaying = false;
+#endif
+		}
+
+		// O destino é diferente da posição atual
+		// As coordenadas do vetor são inteiros
+		// O destino está dentro do mapa
+		// O destino está enfileirado com a posição atual
+
+		// TODO Checar as colisões
+
+		return true;
 	}
+	#endregion
 }
