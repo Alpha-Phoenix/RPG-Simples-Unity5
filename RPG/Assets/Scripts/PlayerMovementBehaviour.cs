@@ -22,19 +22,14 @@ public class PlayerMovementBehaviour : MonoBehaviour {
 		RUNNING = 3
 	}
 
-	private PlayerDirection _direction = PlayerDirection.UP; // Direção para a qual o player iniciará virado
-	private PlayerState _state = PlayerState.STOPPED;		 // Estado atual (PARADO)
-	private Vector3 _destination;		  					 // Direção para a qual o player deve andar
-	private const float initialSpeed = 3;					 // Velocidade default da animação de andar/correr
-	private const float speedMultiplier = 1.5f;				 // Multiplicador quando estiver correndo
-	private const float speed = initialSpeed;        	     // Velocidade de animação
-	private const float _tileSize = 1;            			 // Largura e altura de um tile em Unity units
-	private const float _delayTime = 0.15f;			  		 // O player só se movimenta para uma determinada direção se o keyRecord dessa
-									  						 // direção for igual ao delayTime
-	private bool _moving = false;                            // Flag de movimentação usado e modificado em Move()
-	private bool _running = false;							 // Flag de movimentação acelerada
-	private Animator animator;		  						 // Controlador de animações
-	private Rect mapLimits;									 // Coordenada das bordas do mapa
+	public PlayerDirection _direction = PlayerDirection.UP;  // Direção para a qual o player iniciará virado
+	public PlayerState _state = PlayerState.STOPPED;		 // Estado atual (PARADO)
+	public Vector3 _destination;		  					 // Direção para a qual o player deve andar
+	public const float speed = 2f; 					         // Velocidade em tiles/seg
+	public bool _moving = false;                             // Flag de movimentação usado e modificado em Move()
+	public bool _running = false;							 // Flag de movimentação acelerada
+	public Animator animator;		  						 // Controlador de animações
+	public Rect mapLimits;									 // Coordenada das bordas do mapa
 
 	#endregion
 
@@ -56,7 +51,11 @@ public class PlayerMovementBehaviour : MonoBehaviour {
 	// Update is called once per frame
 	void FixedUpdate () {
 		Move ();
-		UpdatePlayerAnimationState ();
+		UpdatePlayerAnimatiorState ();
+	}
+
+	public Vector3 GetDestination() {
+		return _destination;
 	}
 
 	public Vector3 GetPosition() {
@@ -77,11 +76,16 @@ public class PlayerMovementBehaviour : MonoBehaviour {
 		return true;
 	}
 
+	private void UpdateState() {
+		if (_moving)
+			_state = _running ? PlayerState.RUNNING : PlayerState.WALKING;
+	}
+
 	public bool IsMoving() {
 		return _moving;
 	}
 
-	private void UpdatePlayerAnimationState () {
+	private void UpdatePlayerAnimatiorState () {
 		
 		if (!IsMoving ())
 			_state = PlayerState.STOPPED;
@@ -98,9 +102,7 @@ public class PlayerMovementBehaviour : MonoBehaviour {
 	private void Move() {
 		Vector3 toAdd = _destination - transform.position;
 
-		Vector3 step = _running ?
-			toAdd.normalized * speed * speedMultiplier * Time.deltaTime :
-			toAdd.normalized * speed * Time.deltaTime;
+		Vector3 step = toAdd.normalized * speed * Time.deltaTime;
 
 		if (toAdd.magnitude <= step.magnitude) {
 			transform.position = _destination;
@@ -111,16 +113,18 @@ public class PlayerMovementBehaviour : MonoBehaviour {
 		}
 
 		toAdd = toAdd.normalized;
+		Debug.Log (toAdd + "\n\n");
 
-		if (toAdd == Vector3.left) _direction = PlayerDirection.LEFT;
-		else if (toAdd == Vector3.right) _direction = PlayerDirection.RIGHT;
+		if (toAdd == Vector3.zero) {} // Mantém a direção atual
+		else if (toAdd == Vector3.up) _direction = PlayerDirection.UP;
 		else if (toAdd == Vector3.down) _direction = PlayerDirection.DOWN;
-		else _direction = PlayerDirection.UP;
+		else if (toAdd == Vector3.left) _direction = PlayerDirection.LEFT;
+		else _direction = PlayerDirection.RIGHT;
 	}
 
 	#region TESTED
 	// Verifica se pode mover para um POSIÇÃO no mapa, e não para um DIREÇÃO
-	bool CanMoveTo (Vector3 position) {
+	bool CanMoveTo (Vector3 destination) {
 
 		// Verificando se a posição de destino já não é a posição atual;
 		if (_destination == transform.position) {
@@ -131,12 +135,12 @@ public class PlayerMovementBehaviour : MonoBehaviour {
 		}
 		
 		// Verificando se as coordenadas do vetor são inteiros
-		var sumF = position.x + position.y + position.z;
+		var sumF = destination.x + destination.y + destination.z;
 		var sumI = (int)sumF;
 		if (sumI != sumF) {
 			// As coordenadas não são inteiras
 #if __DEBUG__
-			Debug.LogError ("Invalid destination \"" + position + "\". Only can move to integer positions");
+			Debug.LogError ("Invalid destination \"" + destination + "\". Only can move to integer positions");
 			UnityEditor.EditorApplication.isPlaying = false;
 #endif
 			return false;
@@ -145,12 +149,15 @@ public class PlayerMovementBehaviour : MonoBehaviour {
 
 		// Verificando se a posição está fora do mapa
 		// Lembrando que o pivô do player está no canto inf esq
-		if (position.x < mapLimits.xMin ||
-			(position.x + _tileSize) > mapLimits.xMax ||
-			position.y < mapLimits.yMin ||
-			(position.y - _tileSize) > mapLimits.yMax) {
+
+		const float tileSize = GameGlobalConfigurations.TILE_SIZE;
+
+		if (destination.x < mapLimits.xMin ||
+			(destination.x + tileSize) > mapLimits.xMax ||
+			destination.y < mapLimits.yMin ||
+			(destination.y - tileSize) > mapLimits.yMax) {
 #if __DEBUG__
-			Debug.LogError ("The direction " + position + " move away of the map");
+			Debug.LogError ("The direction " + destination + " move away of the map");
 			UnityEditor.EditorApplication.isPlaying = false;
 #endif
 			return false;
@@ -158,7 +165,8 @@ public class PlayerMovementBehaviour : MonoBehaviour {
 
 
 		// Verificando se o destino está na mesma linha ou na mesma coluna que a posição atual
-		var diff = (position - transform.position).normalized;
+		var diff = (destination - transform.position).normalized;
+
 
 		if (diff == Vector3.up) {
 		} else if (diff == Vector3.down) {
@@ -166,7 +174,7 @@ public class PlayerMovementBehaviour : MonoBehaviour {
 		} else if (diff == Vector3.right) {
 		} else {
 #if __DEBUG__
-			Debug.LogError ("Invalid destination \"" + position + "\". Can only move horizontally or vertically");
+			Debug.LogError ("Invalid destination \"" + destination + "\". Can only move horizontally or vertically");
 			Debug.LogError ("Current position \"" + transform.position + "\".");
 			UnityEditor.EditorApplication.isPlaying = false;
 #endif

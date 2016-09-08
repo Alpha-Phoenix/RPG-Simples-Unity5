@@ -1,10 +1,27 @@
 ﻿<Properties StartupItem="Assembly-CSharp.csproj">
   <MonoDevelop.Ide.Workspace ActiveConfiguration="Debug" PreferredExecutionTarget="Unity.Instance.Unity Editor" />
-  <MonoDevelop.Ide.Workbench ActiveDocument="Assets\Scripts\CameraFollowingController.cs">
+  <MonoDevelop.Ide.Workbench ActiveDocument="Assets\Scripts\Character\CharacterSmoothMovementBehaviour.cs">
     <Files>
-      <File FileName="Assets\Scripts\PlayerMovementBehaviour.cs" Line="36" Column="12" />
-      <File FileName="Assets\Scripts\CameraFollowingController.cs" Line="16" Column="3" />
+      <File FileName="Assets\Scripts\Character\CharacterSmoothMovementBehaviour.cs" Line="30" Column="14" />
+      <File FileName="Assets\Scripts\Character\CharacterMovementController.cs" Line="4" Column="3" />
+      <File FileName="Assets\Scripts\Character\ICharacterMovementBehaviour.cs" Line="12" Column="9" />
     </Files>
+    <Pads>
+      <Pad Id="ProjectPad">
+        <State name="__root__">
+          <Node name="RPG" expanded="True">
+            <Node name="Assembly-CSharp" expanded="True" />
+            <Node name="Assembly-CSharp-Editor" expanded="True" />
+            <Node name="Assembly-CSharp-firstpass" expanded="True" />
+          </Node>
+        </State>
+      </Pad>
+      <Pad Id="MonoDevelop.NUnit.TestPad">
+        <State name="__root__">
+          <Node name="RPG" expanded="True" selected="True" />
+        </State>
+      </Pad>
+    </Pads>
   </MonoDevelop.Ide.Workbench>
   <MonoDevelop.Ide.DebuggingService.Breakpoints>
     <BreakpointStore />

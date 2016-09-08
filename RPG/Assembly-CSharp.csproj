@@ -45,8 +45,13 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-     <Compile Include="Assets\Scripts\CameraFollowingController.cs" />
+     <Compile Include="Assets\Scripts\Character\CharacterMovementController.cs" />
+     <Compile Include="Assets\Scripts\Character\CharacterSmoothMovementBehaviour.cs" />
+     <Compile Include="Assets\Scripts\Character\ICharacterMovementBehaviour.cs" />
+     <Compile Include="Assets\Scripts\GameGlobalConfigurations.cs" />
      <Compile Include="Assets\Scripts\PlayerMovementBehaviour.cs" />
+     <Compile Include="Assets\Scripts\PlayerMovementController.cs" />
+     <Compile Include="Assets\Scripts\Utils.cs" />
      <None Include="Assets\Standard Assets\CrossPlatformInput\CrossPlatformInputGuidelines.txt" />
  <Reference Include="UnityEngine.UI">
  <HintPath>C:/Program Files/Unity/Editor/Data/UnityExtensions/Unity/GUISystem/UnityEngine.UI.dll</HintPath>
